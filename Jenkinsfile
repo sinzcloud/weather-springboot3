@@ -6,35 +6,55 @@ pipeline {
         maven 'maven3'
     }
 
+    environment {
+        APP_NAME = "weather-app"
+        IMAGE_NAME = "weather-app:${BUILD_NUMBER}"
+        CONTAINER_NAME = "weather-app"
+        PORT = "9090"
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                echo "🛎 拉取代码..."
+                echo "拉取代码..."
                 git branch: 'main', url: 'https://github.com/sinzcloud/weather-springboot3.git'
             }
         }
 
         stage('Build') {
             steps {
-                echo "🧱 执行 Maven 编译 & 打包..."
+                echo "Maven 打包..."
                 sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Archive') {
+        stage('Docker Build') {
             steps {
-                echo "📦 归档构建产物..."
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                echo "构建镜像..."
+                sh """
+                docker build -t ${IMAGE_NAME} .
+                """
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "部署容器..."
+                sh """
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+                docker run -d --name ${CONTAINER_NAME} -p ${PORT}:8080 ${IMAGE_NAME}
+                """
             }
         }
     }
 
     post {
         success {
-            echo "✅ 构建成功！"
+            echo "部署成功：http://服务器IP:${PORT}"
         }
         failure {
-            echo "❌ 构建失败，请检查日志..."
+            echo "构建或部署失败，请查看日志"
         }
     }
 }
